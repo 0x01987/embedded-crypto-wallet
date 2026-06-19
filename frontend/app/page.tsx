@@ -1,32 +1,54 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import QRCode from "react-qr-code";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { getBalances } from "../lib/api";
+
+type BalanceResponse = {
+  address: string;
+  balances: {
+    ethereum?: { native_balance: string; symbol: string };
+    polygon?: { native_balance: string; symbol: string };
+    base?: { native_balance: string; symbol: string };
+  };
+};
 
 export default function Home() {
   const { ready, authenticated, login, logout, user } = usePrivy();
   const { wallets } = useWallets();
-  const [copied, setCopied] = useState(false);
 
-  const networks = [
-    "Ethereum",
-    "Polygon",
-    "Base",
-    "Solana",
-    "Bitcoin",
-    "XRP",
-  ];
+  const [copied, setCopied] = useState(false);
+  const [balanceData, setBalanceData] = useState<BalanceResponse | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [balanceError, setBalanceError] = useState("");
 
   const primaryWallet = wallets[0];
   const walletAddress = primaryWallet?.address;
 
+  useEffect(() => {
+    async function loadBalances() {
+      if (!walletAddress) return;
+
+      try {
+        setBalanceLoading(true);
+        setBalanceError("");
+        const data = await getBalances(walletAddress);
+        setBalanceData(data);
+      } catch {
+        setBalanceError("Unable to load balances");
+      } finally {
+        setBalanceLoading(false);
+      }
+    }
+
+    loadBalances();
+  }, [walletAddress]);
+
   const copyAddress = async () => {
     if (!walletAddress) return;
-
     await navigator.clipboard.writeText(walletAddress);
     setCopied(true);
-
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -47,8 +69,8 @@ export default function Home() {
           </p>
           <h1 className="text-4xl font-bold mt-2">VaultPay Wallet</h1>
           <p className="text-slate-400 mt-3">
-            Simple, fast crypto wallet with embedded wallet login, QR receive,
-            and multi-chain support roadmap.
+            Login, receive crypto, copy your wallet address, and view live
+            Ethereum, Polygon, and Base balances.
           </p>
         </div>
 
@@ -71,8 +93,8 @@ export default function Home() {
           <>
             <div className="grid gap-4 md:grid-cols-3 mb-8">
               <div className="rounded-2xl bg-slate-900 p-5 border border-slate-800">
-                <p className="text-slate-400 text-sm">Total Balance</p>
-                <h2 className="text-3xl font-bold mt-2">$0.00</h2>
+                <p className="text-slate-400 text-sm">Wallets</p>
+                <h2 className="text-3xl font-bold mt-2">{wallets.length}</h2>
               </div>
 
               <div className="rounded-2xl bg-slate-900 p-5 border border-slate-800">
@@ -85,13 +107,45 @@ export default function Home() {
 
               <div className="rounded-2xl bg-slate-900 p-5 border border-slate-800">
                 <p className="text-slate-400 text-sm">Account</p>
-                <h2 className="text-xl font-semibold mt-2">
+                <h2 className="text-xl font-semibold mt-2 break-all">
                   {user?.email?.address ?? "Logged In"}
                 </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  Wallets: {wallets.length}
-                </p>
               </div>
+            </div>
+
+            <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 mb-8">
+              <h2 className="text-xl font-bold mb-4">Live Balances</h2>
+
+              {balanceLoading && (
+                <p className="text-slate-400">Loading balances...</p>
+              )}
+
+              {balanceError && (
+                <p className="text-red-400">{balanceError}</p>
+              )}
+
+              {!balanceLoading && !balanceError && (
+                <div className="grid gap-3 md:grid-cols-3">
+                  {["ethereum", "polygon", "base"].map((chain) => {
+                    const item =
+                      balanceData?.balances[
+                        chain as keyof BalanceResponse["balances"]
+                      ];
+
+                    return (
+                      <div
+                        key={chain}
+                        className="rounded-xl bg-slate-950 border border-slate-800 p-4"
+                      >
+                        <p className="font-semibold capitalize">{chain}</p>
+                        <p className="text-2xl font-bold mt-2">
+                          {item?.native_balance ?? "0"} {item?.symbol ?? ""}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 mb-8">
@@ -147,24 +201,6 @@ export default function Home() {
                     Logout
                   </button>
                 </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 mb-8">
-              <h2 className="text-xl font-bold mb-4">Supported Networks</h2>
-
-              <div className="grid gap-3 md:grid-cols-3">
-                {networks.map((network) => (
-                  <div
-                    key={network}
-                    className="rounded-xl bg-slate-950 border border-slate-800 p-4"
-                  >
-                    <p className="font-semibold">{network}</p>
-                    <p className="text-sm text-slate-500 mt-1">
-                      Send / Receive planned
-                    </p>
-                  </div>
-                ))}
               </div>
             </div>
 
