@@ -1,6 +1,9 @@
 from fastapi import FastAPI
+from app.routes.balance import router as balance_router
 
 app = FastAPI(title="VaultPay Wallet API")
+
+app.include_router(balance_router)
 
 @app.get("/")
 def root():
@@ -12,7 +15,4 @@ def health():
 
 @app.get("/api/status")
 def status():
-    return {
-        "status": "online",
-        "version": "0.1.0"
-    }
+    return {"status": "online", "version": "0.1.0"}
